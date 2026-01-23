@@ -113,7 +113,7 @@ if artigo_file:
         if st.button("Validar Referências"):
             with st.spinner("Conferindo negrito, DOI e normas ABNT..."):
                 prompt_referencias = (
-                    "Aja como Bibliotecário especialista da UFSC. Valide as referências conforme NBR 6023:\n"
+                    "Aja como Editor da Revista Encontros Bibli. Valide as referências conforme NBR 6023:\n"
                     "1. TÍTULO DA OBRA: Deve estar obrigatoriamente em NEGRITO.\n"
                     "2. DOI: É obrigatório em formato de URL completa (https://doi.org/...).\n"
                     "3. NOMES: Padrão SOBRENOME, Nome (iniciais ou por extenso conforme o artigo).\n"
@@ -123,3 +123,4 @@ if artigo_file:
                 res = realizar_analise(prompt_referencias, api_key)
                 st.markdown(res)
                 st.download_button("📥 Baixar Relatório de Referências", gerar_docx(res, "Referencias_ABNT"), "referencias.docx")
+
