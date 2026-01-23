@@ -4,6 +4,7 @@ from PyPDF2 import PdfReader
 import requests
 import os
 import time
+from io import BytesIO
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Editoria Encontros Bibli", layout="wide", page_icon="🛡️")
@@ -31,7 +32,24 @@ def limpar_sessao():
     st.session_state.clear()
     st.rerun()
 
-# Forçamos o modelo 1.5-flash para garantir estabilidade de cota
+def gerar_docx_download(conteudo, titulo_relatorio):
+    """Cria um arquivo .docx a partir do texto de análise."""
+    doc_out = Document()
+    doc_out.add_heading(titulo_relatorio, 0)
+    
+    # Adiciona o conteúdo ao Word tratando quebras de linha e títulos simples
+    for linha in conteudo.split('\n'):
+        if linha.startswith('###'):
+            doc_out.add_heading(linha.replace('###', '').strip(), level=1)
+        elif linha.strip():
+            doc_out.add_paragraph(linha)
+            
+    buffer = BytesIO()
+    doc_out.save(buffer)
+    buffer.seek(0)
+    return buffer
+
+# Modelo estável
 NOME_MODELO_FIXO = "gemini-1.5-flash"
 
 # --- INTERFACE ---
@@ -68,68 +86,91 @@ if artigo_file:
     tab1, tab2, tab3 = st.tabs(["📐 Estrutura & Formatação", "✍️ Gramática & Citações", "📚 Referências (ABNT)"])
 
     def realizar_analise(prompt_texto):
-        # Chamada direta ao modelo estável 1.5-flash
         url = f"https://generativelanguage.googleapis.com/v1/models/{NOME_MODELO_FIXO}:generateContent?key={api_key}"
         payload = {
             "contents": [{"parts": [{"text": prompt_texto}]}],
             "generationConfig": {"temperature": 0.1, "maxOutputTokens": 8192}
         }
-        res = requests.post(url, json=payload)
-        
-        if res.status_code == 200:
-            return res.json()['candidates'][0]['content']['parts'][0]['text']
-        elif res.status_code == 429:
-            return "ERRO_COTA: Limite de requisições atingido. Aguardando..."
-        else:
-            return f"Erro: {res.text}"
+        try:
+            res = requests.post(url, json=payload, timeout=60)
+            if res.status_code == 200:
+                return res.json()['candidates'][0]['content']['parts'][0]['text']
+            elif res.status_code == 429:
+                return "ERRO_COTA: Limite atingido."
+            else:
+                return f"Erro na API: {res.text}"
+        except Exception as e:
+            return f"Erro de conexão: {e}"
 
+    # --- TAB 1: ESTRUTURA ---
     with tab1:
-        if st.button("Executar Verificação de Estrutura"):
+        if st.button("Executar Verificação de Estrutura", key="btn_tab1"):
             with st.spinner("Analisando estrutura..."):
-                prompt = f"REVISOR RIGOROSO: Verifique títulos bilingues, resumo (100-250 palavras) e palavras-chave separadas por ponto. Idiomas aceitos: PT, EN, ES.\nTUTORIAL: {texto_tutorial}\nTEXTO: {texto_artigo[:8000]}"
-                st.markdown(realizar_analise(prompt))
+                prompt = f"REVISOR RIGOROSO: Verifique títulos bilingues, resumo (100-250 palavras) e palavras-chave. Idiomas: PT, EN, ES.\nTUTORIAL: {texto_tutorial}\nTEXTO: {texto_artigo[:8000]}"
+                resultado_est = realizar_analise(prompt)
+                st.markdown(resultado_est)
+                
+                st.divider()
+                st.download_button(
+                    label="📥 Salvar Relatório de Estrutura (.docx)",
+                    data=gerar_docx_download(resultado_est, "Relatório de Estrutura e Formatação"),
+                    file_name=f"Estrutura_{artigo_file.name}",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                )
 
+    # --- TAB 2: LINGUÍSTICA ---
     with tab2:
-        if st.button("Executar Revisão Linguística"):
+        if st.button("Executar Revisão Linguística", key="btn_tab2"):
             with st.spinner("Iniciando revisão por partes..."):
-                # Blocos maiores (12k a 15k) reduzem o número de chamadas à API
                 tamanho_bloco = 12000 
                 blocos = [texto_artigo[i:i + tamanho_bloco] for i in range(0, len(texto_artigo), tamanho_bloco)]
                 
-                relatorio_final = ""
+                relatorio_ling = ""
                 progresso = st.progress(0)
                 status_text = st.empty()
                 
                 for idx, bloco in enumerate(blocos):
                     status_text.text(f"Analisando parte {idx+1} de {len(blocos)}...")
-                    
-                    prompt = f"Atue como Revisor Sênior. Liste ERROS de ortografia/gramática e de citações ABNT (mais de 3 linhas = recuo 4cm, sem aspas). Se tudo estiver certo, diga 'OK'.\nTRECHO: {bloco}"
+                    prompt = f"Atue como Revisor Sênior. Liste ERROS de ortografia/gramática e de citações ABNT. Se tudo estiver certo, diga 'OK'.\nTRECHO: {bloco}"
                     
                     resultado = realizar_analise(prompt)
-                    
-                    # Se bater na cota, espera 10 segundos e tenta de novo a mesma parte
                     if "ERRO_COTA" in resultado:
-                        status_text.warning("Cota atingida! Pausando 10 segundos para retomar...")
                         time.sleep(10)
                         resultado = realizar_analise(prompt)
                     
                     if "OK" not in resultado.upper():
-                        relatorio_final += f"\n### Parte {idx+1}\n" + resultado
+                        relatorio_ling += f"\n### Parte {idx+1}\n" + resultado
                     
-                    # Pausa de segurança entre requisições bem-sucedidas
                     time.sleep(4) 
                     progresso.progress((idx + 1) / len(blocos))
                 
                 status_text.empty()
-                if relatorio_final:
-                    st.markdown(relatorio_final)
+                if relatorio_ling:
+                    st.markdown(relatorio_ling)
+                    st.divider()
+                    st.download_button(
+                        label="📥 Salvar Relatório Linguístico (.docx)",
+                        data=gerar_docx_download(relatorio_ling, "Revisão Linguística e Citações"),
+                        file_name=f"Linguistica_{artigo_file.name}",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    )
                 else:
                     st.success("Nenhum erro linguístico detectado.")
 
+    # --- TAB 3: REFERÊNCIAS ---
     with tab3:
-        if st.button("Executar Validação de Referências"):
+        if st.button("Executar Validação de Referências", key="btn_tab3"):
             with st.spinner("Analisando referências..."):
-                # Foca no final do documento (últimos 30%)
-                referencias = texto_artigo[int(len(texto_artigo)*0.7):]
-                prompt = f"Verifique Referências ABNT NBR 6023. Título em NEGRITO e ordem alfabética são obrigatórios.\nREFERÊNCIAS:\n{referencias}"
-                st.markdown(realizar_analise(prompt))
+                # Pega o final do texto onde costumam estar as referências
+                referencias_texto = texto_artigo[int(len(texto_artigo)*0.7):]
+                prompt = f"Verifique Referências ABNT NBR 6023. Título em NEGRITO e ordem alfabética obrigatórios.\nREFERÊNCIAS:\n{referencias_texto}"
+                resultado_ref = realizar_analise(prompt)
+                st.markdown(resultado_ref)
+                
+                st.divider()
+                st.download_button(
+                    label="📥 Salvar Relatório de Referências (.docx)",
+                    data=gerar_docx_download(resultado_ref, "Validação de Referências ABNT"),
+                    file_name=f"Referencias_{artigo_file.name}",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                )
