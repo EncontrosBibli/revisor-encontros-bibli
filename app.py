@@ -2,7 +2,6 @@ import streamlit as st
 from docx import Document
 from PyPDF2 import PdfReader
 import requests
-import os
 import time
 from io import BytesIO
 
@@ -39,63 +38,41 @@ def gerar_docx_download(conteudo, titulo_relatorio):
     buffer.seek(0)
     return buffer
 
-def descobrir_melhor_modelo(chave):
-    """Tenta descobrir o endpoint correto para a API Key fornecida."""
-    for versao in ["v1beta", "v1"]:
-        url = f"https://generativelanguage.googleapis.com/{versao}/models?key={chave}"
-        try:
-            res = requests.get(url, timeout=10)
-            if res.status_code == 200:
-                modelos = res.json().get('models', [])
-                for m in modelos:
-                    if "gemini-1.5-flash" in m['name'] and "generateContent" in m['supportedGenerationMethods']:
-                        # Retorna o formato 'versao/nome_do_modelo'
-                        return f"{versao}/{m['name']}"
-        except: 
-            continue
-    return None
-
-# --- 3. FUNÇÃO DE ANÁLISE COM REPETIÇÃO (ANTI-COTA) ---
+# --- 3. FUNÇÃO DE ANÁLISE ROBUSTA (SEM ERRO 404) ---
 def realizar_analise_robusta(prompt_texto, api_key, max_tentativas=3):
-    # Forçamos o endpoint v1beta com o nome completo do modelo
-    # Este é o endereço oficial que o Google recomenda para evitar erro 404
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+    # Tentamos os dois endpoints mais comuns do Google
+    urls_para_tentar = [
+        f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}",
+        f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={api_key}"
+    ]
     
     payload = {
         "contents": [{"parts": [{"text": prompt_texto}]}],
-        "generationConfig": {
-            "temperature": 0.1, 
-            "maxOutputTokens": 8192
-        }
+        "generationConfig": {"temperature": 0.1, "maxOutputTokens": 8192}
     }
     
     for tentativa in range(max_tentativas):
-        try:
-            res = requests.post(url, json=payload, timeout=90)
-            
-            # Se funcionar, retorna o texto
-            if res.status_code == 200:
-                return res.json()['candidates'][0]['content']['parts'][0]['text']
-            
-            # Se der erro 404, tentamos a versão v1 (sem o beta)
-            if res.status_code == 404:
-                url_v1 = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={api_key}"
-                res = requests.post(url_v1, json=payload, timeout=90)
+        for url in urls_para_tentar:
+            try:
+                res = requests.post(url, json=payload, timeout=90)
+                
                 if res.status_code == 200:
                     return res.json()['candidates'][0]['content']['parts'][0]['text']
-
-            # Tratamento de cota
-            if res.status_code == 429:
-                st.warning(f"⚠️ Cota atingida. Tentativa {tentativa+1}. Pausando 60s...")
-                time.sleep(60)
-                continue
                 
-            return f"Erro {res.status_code}: {res.text}"
-            
-        except Exception as e:
-            time.sleep(5)
-            continue
-    return "Erro persistente."
+                if res.status_code == 429:
+                    st.warning(f"⚠️ Cota atingida. Aguardando 60s (Tentativa {tentativa+1})...")
+                    time.sleep(60)
+                    break # Sai do loop de URLs para tentar novamente após a pausa
+                
+                # Se for 404, o loop continua para a próxima URL da lista
+                if res.status_code == 404:
+                    continue
+                    
+            except Exception as e:
+                continue
+    
+    return "Erro: Não foi possível conectar ao modelo. Verifique se sua API Key está correta e sem espaços."
+
 # --- INTERFACE ---
 st.title("🛡️ Painel de Editoração - Revista Encontros Bibli")
 
@@ -113,51 +90,31 @@ with st.sidebar:
         st.rerun()
 
 if not api_key:
-    st.warning("👈 Insira a API Key para começar.")
+    st.warning("👈 Por favor, insira a API Key para começar.")
     st.stop()
 
-# --- CONEXÃO E DESCOBERTA DO MODELO (PLANO C INTEGRADO) ---
-with st.spinner("Conectando com Google AI..."):
-    caminho_modelo = descobrir_melhor_modelo(api_key)
-    
-    if not caminho_modelo:
-        # Plano C: Tenta forçar o caminho mais provável caso a listagem falhe
-        url_teste = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
-        try:
-            teste_res = requests.post(url_teste, json={"contents": [{"parts": [{"text": "hi"}]}]}, timeout=10)
-            if teste_res.status_code == 200:
-                caminho_modelo = "v1beta/models/gemini-1.5-flash"
-        except:
-            caminho_modelo = None
-
-if not caminho_modelo:
-    st.error("❌ Modelo não encontrado. Verifique se sua chave está correta e ativa.")
-    st.stop()
-else:
-    st.toast("Conectado com sucesso!", icon="✅")
-
-# --- FLUXO DE ARQUIVO ---
+# --- FLUXO PRINCIPAL ---
 artigo_file = st.file_uploader("📂 Subir Artigo (DOCX)", type="docx")
 
 if artigo_file:
-    with st.spinner("⏳ Lendo documentos..."):
+    with st.spinner("⏳ Processando documentos..."):
         doc = Document(artigo_file)
         texto_artigo = "\n".join([p.text.strip() for p in doc.paragraphs if p.text.strip()])
         texto_tutorial = baixar_e_ler_tutorial()
 
+    st.success("✅ Pronto para análise!")
     tab1, tab2, tab3 = st.tabs(["📐 Estrutura", "✍️ Gramática", "📚 Referências"])
 
     with tab1:
         if st.button("Analisar Estrutura", key="b1"):
             with st.spinner("Analisando..."):
-                res = realizar_analise_robusta(f"Verifique títulos e resumos: {texto_artigo[:8000]}\nNormas: {texto_tutorial}", api_key, caminho_modelo)
+                res = realizar_analise_robusta(f"Verifique títulos bilingues e resumo (100-250 palavras) conforme: {texto_tutorial}\nTexto: {texto_artigo[:8000]}", api_key)
                 st.markdown(res)
-                if "Erro" not in res:
-                    st.download_button("📥 Baixar DOCX", gerar_docx_download(res, "Estrutura"), f"Estrutura_{artigo_file.name}", key="d1")
+                st.download_button("📥 Salvar Relatório (.docx)", gerar_docx_download(res, "Estrutura"), f"Estrutura_{artigo_file.name}")
 
     with tab2:
         if st.button("Analisar Gramática", key="b2"):
-            tamanho = 25000 
+            tamanho = 20000 
             blocos = [texto_artigo[i:i+tamanho] for i in range(0, len(texto_artigo), tamanho)]
             relatorio = ""
             prog = st.progress(0)
@@ -165,7 +122,7 @@ if artigo_file:
             
             for idx, b in enumerate(blocos):
                 status.text(f"Analisando parte {idx+1} de {len(blocos)}...")
-                r = realizar_analise_robusta(f"Revisão ortográfica e citações ABNT: {b}", api_key, caminho_modelo)
+                r = realizar_analise_robusta(f"Revisão ortográfica e citações ABNT: {b}", api_key)
                 relatorio += f"\n### Parte {idx+1}\n{r}"
                 time.sleep(10) 
                 prog.progress((idx+1)/len(blocos))
@@ -173,13 +130,11 @@ if artigo_file:
             status.empty()
             st.markdown(relatorio)
             if relatorio:
-                st.download_button("📥 Baixar DOCX", gerar_docx_download(relatorio, "Gramática"), f"Gramatica_{artigo_file.name}", key="d2")
+                st.download_button("📥 Salvar Relatório (.docx)", gerar_docx_download(relatorio, "Gramática"), f"Gramatica_{artigo_file.name}")
 
     with tab3:
         if st.button("Analisar Referências", key="b3"):
             with st.spinner("Analisando..."):
-                res = realizar_analise_robusta(f"Verifique ABNT 6023: {texto_artigo[int(len(texto_artigo)*0.7):]}", api_key, caminho_modelo)
+                res = realizar_analise_robusta(f"Verifique ABNT 6023 (Negrito no título): {texto_artigo[int(len(texto_artigo)*0.7):]}", api_key)
                 st.markdown(res)
-                if "Erro" not in res:
-                    st.download_button("📥 Baixar DOCX", gerar_docx_download(res, "Referências"), f"Ref_{artigo_file.name}", key="d3")
-
+                st.download_button("📥 Salvar Relatório (.docx)", gerar_docx_download(res, "Referências"), f"Ref_{artigo_file.name}")
