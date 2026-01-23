@@ -21,16 +21,32 @@ def gerar_docx(conteudo, titulo):
     buf.seek(0)
     return buf
 
-def realizar_analise(prompt, api_key):
+def realizar_analise_oficial(prompt, api_key):
     try:
         genai.configure(api_key=api_key)
-        # O modelo 'gemini-1.5-flash' é o padrão para evitar o erro 404
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        
+        # --- O SEGREDO PARA MATAR O ERRO 404 ---
+        # Em vez de escrever o nome na mão, perguntamos ao Google quais modelos você tem
+        modelos_disponiveis = [m.name for m in genai.list_models() 
+                               if 'generateContent' in m.supported_generation_methods]
+        
+        # Procuramos o Flash 1.5 na sua lista de modelos autorizados
+        nome_modelo = next((m for m in modelos_disponiveis if 'gemini-1.5-flash' in m), None)
+        
+        # Se por algum motivo o Flash não estiver lá, pegamos o primeiro Gemini disponível
+        if not nome_modelo:
+            nome_modelo = modelos_disponiveis[0] if modelos_disponiveis else 'gemini-1.5-flash'
+
+        model = genai.GenerativeModel(nome_modelo)
         response = model.generate_content(prompt)
         return response.text
+
     except Exception as e:
-        if "429" in str(e): return "ERRO_COTA"
-        return f"Erro na API: {str(e)}"
+        erro_msg = str(e)
+        if "429" in erro_msg:
+            return "ERRO_COTA"
+        # Se ainda der erro, mostramos o erro real para diagnóstico
+        return f"Erro na API: {erro_msg}"
 
 # --- 3. INTERFACE DO USUÁRIO ---
 st.title("🛡️ Painel de Editoração - Encontros Bibli")
@@ -102,3 +118,4 @@ if arquivo:
                 st.markdown(res)
                 if "Erro" not in res:
                     st.download_button("📥 Baixar Relatório", gerar_docx(res, "Referencias"), "referencias.docx")
+
