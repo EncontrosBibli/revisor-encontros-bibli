@@ -95,9 +95,40 @@ if artigo_file:
 
     with tab2:
         if st.button("Executar Revisão Linguística"):
-            with st.spinner("Analisando..."):
-                prompt = f"Você é um revisor linguístico e de normas ABNT. Identifique ERROS de ortografia, gramática e concordância no idioma original do artigo (PT, EN ou ES). Paralelamente, verifique se citações curtas estão com aspas e citações longas (>3 linhas) têm recuo de 4cm e fonte menor. Aponte o erro e indique sugestão de mudança.\nTEXTO: {texto_artigo}"
-                st.markdown(realizar_analise(prompt))
+            with st.spinner("Analisando gramática e citações por partes..."):
+                # Dividindo o texto em pedaços para evitar cortes (aprox. 4000 caracteres por bloco)
+                tamanho_bloco = 4000
+                blocos = [texto_artigo[i:i + tamanho_bloco] for i in range(0, len(texto_artigo), tamanho_bloco)]
+                
+                relatorio_final = ""
+                progresso = st.progress(0)
+                
+                for idx, bloco in enumerate(blocos):
+                    prompt = f"""
+                    Você é um revisor linguístico de periódicos científicos. 
+                    Analise este TRECHO do artigo (Parte {idx+1} de {len(blocos)}).
+                    
+                    TAREFAS:
+                    1. Identifique ERROS de ortografia, gramática e concordância (PT, EN ou ES).
+                    2. Verifique citações (norma ABNT: recuo 4cm para >3 linhas).
+                    
+                    FORMATO:
+                    ❌ ERRO: [Texto original]
+                    ✔️ SUGESTÃO: [Texto corrigido ou regra]
+                    
+                    Se não houver erros neste trecho, responda apenas: "Trecho OK".
+                    TRECHO: {bloco}
+                    """
+                    resultado_parcial = realizar_analise(prompt)
+                    if "Trecho OK" not in resultado_parcial:
+                        relatorio_final += f"\n### Análise da Parte {idx+1}\n" + resultado_parcial
+                    
+                    progresso.progress((idx + 1) / len(blocos))
+                
+                if relatorio_final == "":
+                    st.success("Nenhum erro linguístico ou de citação encontrado!")
+                else:
+                    st.markdown(relatorio_final)
 
     with tab3:
         if st.button("Executar Validação de Referências"):
