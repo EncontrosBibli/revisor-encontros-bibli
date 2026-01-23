@@ -130,14 +130,17 @@ if artigo_file:
             prog = st.progress(0)
             status = st.empty()
             for idx, b in enumerate(blocos):
-                status.text(f"Analisando parte {idx+1} de {len(blocos)}...")
-                r = realizar_analise(f"Revisão ortográfica e citações ABNT: {b}", api_key, caminho_modelo)
-                if r == "ERRO_COTA":
-                    time.sleep(15)
+                    status.text(f"Analisando parte {idx+1} de {len(blocos)}...")
                     r = realizar_analise(f"Revisão ortográfica e citações ABNT: {b}", api_key, caminho_modelo)
-                relatorio += f"\n### Parte {idx+1}\n{r}"
-                time.sleep(5)
-                prog.progress((idx+1)/len(blocos))
+                    
+                    if r == "ERRO_COTA":
+                        status.warning("Cota atingida! Aguardando 30 segundos para resetar o limite...")
+                        time.sleep(30) # Pausa maior para o Google "esquecer" o excesso
+                        r = realizar_analise(f"Revisão ortográfica e citações ABNT: {b}", api_key, caminho_modelo)
+                    
+                    relatorio += f"\n### Parte {idx+1}\n{r}"
+                    time.sleep(10) # Pausa padrão entre blocos aumentada para 10s
+                    prog.progress((idx+1)/len(blocos))
             status.empty()
             st.markdown(relatorio)
             if relatorio:
@@ -150,3 +153,4 @@ if artigo_file:
             st.markdown(res)
             if "Erro" not in res:
                 st.download_button("📥 Salvar Relatório (.docx)", gerar_docx_download(res, "Referências"), f"Ref_{artigo_file.name}", key="d3")
+
