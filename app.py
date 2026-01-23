@@ -3,7 +3,7 @@ from docx import Document
 from PyPDF2 import PdfReader
 import requests
 import os
-import time # incluindo um mecanismo de pausa (time.sleep) para não sobrecarregar a API
+import time
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Editoria Encontros Bibli", layout="wide", page_icon="🛡️")
@@ -16,7 +16,7 @@ CAMINHO_LOCAL_TUTORIAL = "tutorial_encontros_bibli.pdf"
 def baixar_e_ler_tutorial():
     """Baixa o tutorial do site da UFSC e extrai o texto."""
     try:
-        response = requests.get(URL_TUTORIAL, timeout=10)
+        response = requests.get(URL_TUTORIAL, timeout=15)
         with open(CAMINHO_LOCAL_TUTORIAL, "wb") as f:
             f.write(response.content)
         
@@ -31,17 +31,8 @@ def limpar_sessao():
     st.session_state.clear()
     st.rerun()
 
-def descobrir_modelo(chave):
-    url = f"https://generativelanguage.googleapis.com/v1/models?key={chave}"
-    try:
-        res = requests.get(url)
-        if res.status_code == 200:
-            modelos = res.json().get('models', [])
-            for m in modelos:
-                if "generateContent" in m.get("supportedGenerationMethods", []):
-                    return m.get("name")
-    except: return None
-    return None
+# Forçamos o modelo 1.5-flash para garantir estabilidade de cota
+NOME_MODELO_FIXO = "gemini-1.5-flash"
 
 # --- INTERFACE ---
 st.title("🛡️ Painel de Editoração - Revista Encontros Bibli")
@@ -63,8 +54,6 @@ if not api_key:
     st.warning("👈 Por favor, insira a API Key para ativar os módulos de IA.")
     st.stop()
 
-nome_modelo = descobrir_modelo(api_key)
-
 # --- FLUXO PRINCIPAL ---
 artigo_file = st.file_uploader("📂 Subir Artigo para Revisão (Formato DOCX)", type="docx")
 
@@ -76,75 +65,71 @@ if artigo_file:
 
     st.success("✅ Documentos processados com sucesso!")
     
-    # Módulos de Análise
     tab1, tab2, tab3 = st.tabs(["📐 Estrutura & Formatação", "✍️ Gramática & Citações", "📚 Referências (ABNT)"])
 
     def realizar_analise(prompt_texto):
-        url = f"https://generativelanguage.googleapis.com/v1/{nome_modelo}:generateContent?key={api_key}"
+        # Chamada direta ao modelo estável 1.5-flash
+        url = f"https://generativelanguage.googleapis.com/v1/models/{NOME_MODELO_FIXO}:generateContent?key={api_key}"
         payload = {
             "contents": [{"parts": [{"text": prompt_texto}]}],
             "generationConfig": {"temperature": 0.1, "maxOutputTokens": 8192}
         }
         res = requests.post(url, json=payload)
-        return res.json()['candidates'][0]['content']['parts'][0]['text'] if res.status_code == 200 else f"Erro: {res.text}"
+        
+        if res.status_code == 200:
+            return res.json()['candidates'][0]['content']['parts'][0]['text']
+        elif res.status_code == 429:
+            return "ERRO_COTA: Limite de requisições atingido. Aguardando..."
+        else:
+            return f"Erro: {res.text}"
 
     with tab1:
         if st.button("Executar Verificação de Estrutura"):
-            with st.spinner("Analisando..."):
-                prompt = f"REVISOR RIGOROSO: Compare o artigo com o tutorial da UFSC abaixo. Verifique rigorosamente a estrutura: títulos bilingues, resumo (100-250 palavras), palavras-chave separadas por ponto final. Identifique o idioma (PT, EN ou ES) e verifique a coerência estrutural.\nTUTORIAL: {texto_tutorial}\nTEXTO: {texto_artigo[:6000]}"
+            with st.spinner("Analisando estrutura..."):
+                prompt = f"REVISOR RIGOROSO: Verifique títulos bilingues, resumo (100-250 palavras) e palavras-chave separadas por ponto. Idiomas aceitos: PT, EN, ES.\nTUTORIAL: {texto_tutorial}\nTEXTO: {texto_artigo[:8000]}"
                 st.markdown(realizar_analise(prompt))
 
     with tab2:
         if st.button("Executar Revisão Linguística"):
-            with st.spinner("Analisando gramática e citações de forma robusta..."):
-                # Aumentamos o bloco para 8000 caracteres para reduzir o número de partes
-                tamanho_bloco = 8000 
+            with st.spinner("Iniciando revisão por partes..."):
+                # Blocos maiores (12k a 15k) reduzem o número de chamadas à API
+                tamanho_bloco = 12000 
                 blocos = [texto_artigo[i:i + tamanho_bloco] for i in range(0, len(texto_artigo), tamanho_bloco)]
                 
                 relatorio_final = ""
                 progresso = st.progress(0)
-                placeholder_status = st.empty() # Para mostrar em qual parte está
+                status_text = st.empty()
                 
                 for idx, bloco in enumerate(blocos):
-                    placeholder_status.text(f"Analisando bloco {idx+1} de {len(blocos)}...")
+                    status_text.text(f"Analisando parte {idx+1} de {len(blocos)}...")
                     
-                    prompt = f"""
-                    Atue como Revisor Linguístico Sênior. Analise o TRECHO abaixo:
-                    1. Ortografia/Gramática (PT, EN ou ES).
-                    2. Citações ABNT (recuo 4cm p/ >3 linhas).
+                    prompt = f"Atue como Revisor Sênior. Liste ERROS de ortografia/gramática e de citações ABNT (mais de 3 linhas = recuo 4cm, sem aspas). Se tudo estiver certo, diga 'OK'.\nTRECHO: {bloco}"
                     
-                    Formato de resposta:
-                    ❌ ERRO: [Original]
-                    ✔️ SUGESTÃO: [Correção]
-                    (Se não houver erros, diga: "OK")
+                    resultado = realizar_analise(prompt)
                     
-                    TRECHO:
-                    {bloco}
-                    """
+                    # Se bater na cota, espera 10 segundos e tenta de novo a mesma parte
+                    if "ERRO_COTA" in resultado:
+                        status_text.warning("Cota atingida! Pausando 10 segundos para retomar...")
+                        time.sleep(10)
+                        resultado = realizar_analise(prompt)
                     
-                    try:
-                        resultado_parcial = realizar_analise(prompt)
-                        if "OK" not in resultado_parcial.upper():
-                            relatorio_final += f"\n### Seção {idx+1}\n" + resultado_parcial
-                        
-                        # Pequena pausa para não dar erro de limite (Rate Limit)
-                        time.sleep(2) 
-                        
-                    except Exception as e:
-                        relatorio_final += f"\n⚠️ Erro na Seção {idx+1}: O sistema não conseguiu processar esta parte."
+                    if "OK" not in resultado.upper():
+                        relatorio_final += f"\n### Parte {idx+1}\n" + resultado
                     
+                    # Pausa de segurança entre requisições bem-sucedidas
+                    time.sleep(4) 
                     progresso.progress((idx + 1) / len(blocos))
                 
-                placeholder_status.empty() # Limpa o status ao terminar
-                
-                if relatorio_final == "":
-                    st.success("Nenhum erro encontrado nos blocos analisados.")
-                else:
+                status_text.empty()
+                if relatorio_final:
                     st.markdown(relatorio_final)
+                else:
+                    st.success("Nenhum erro linguístico detectado.")
 
     with tab3:
         if st.button("Executar Validação de Referências"):
-            with st.spinner("Analisando..."):
+            with st.spinner("Analisando referências..."):
+                # Foca no final do documento (últimos 30%)
                 referencias = texto_artigo[int(len(texto_artigo)*0.7):]
-                prompt = f"Verifique se as referências seguem a ABNT NBR 6023:2018. Itens obrigatórios: Título da obra em NEGRITO, ordem alfabética, nomes de autores padronizados. Liste apenas as que precisam de correção com sugestões.\nREFERÊNCIAS:\n{referencias}"
+                prompt = f"Verifique Referências ABNT NBR 6023. Título em NEGRITO e ordem alfabética são obrigatórios.\nREFERÊNCIAS:\n{referencias}"
                 st.markdown(realizar_analise(prompt))
