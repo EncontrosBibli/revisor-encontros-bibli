@@ -56,33 +56,46 @@ def descobrir_melhor_modelo(chave):
     return None
 
 # --- 3. FUNÇÃO DE ANÁLISE COM REPETIÇÃO (ANTI-COTA) ---
-def realizar_analise_robusta(prompt_texto, api_key, caminho_modelo, max_tentativas=3):
-    url = f"https://generativelanguage.googleapis.com/{caminho_modelo}:generateContent?key={api_key}"
+def realizar_analise_robusta(prompt_texto, api_key, max_tentativas=3):
+    # Forçamos o endpoint v1beta com o nome completo do modelo
+    # Este é o endereço oficial que o Google recomenda para evitar erro 404
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+    
     payload = {
         "contents": [{"parts": [{"text": prompt_texto}]}],
-        "generationConfig": {"temperature": 0.1, "maxOutputTokens": 8192}
+        "generationConfig": {
+            "temperature": 0.1, 
+            "maxOutputTokens": 8192
+        }
     }
     
     for tentativa in range(max_tentativas):
         try:
             res = requests.post(url, json=payload, timeout=90)
+            
+            # Se funcionar, retorna o texto
             if res.status_code == 200:
                 return res.json()['candidates'][0]['content']['parts'][0]['text']
-            elif res.status_code == 429:
-                if tentativa < max_tentativas - 1:
-                    tempo_espera = 60 
-                    st.warning(f"⚠️ Cota atingida. Pausando por {tempo_espera}s para retomar...")
-                    time.sleep(tempo_espera)
-                    continue
-                else:
-                    return "ERRO_LIMITE_DIARIO: A cota diária ou de velocidade foi excedida."
-            else:
-                return f"Erro {res.status_code}: {res.text}"
+            
+            # Se der erro 404, tentamos a versão v1 (sem o beta)
+            if res.status_code == 404:
+                url_v1 = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={api_key}"
+                res = requests.post(url_v1, json=payload, timeout=90)
+                if res.status_code == 200:
+                    return res.json()['candidates'][0]['content']['parts'][0]['text']
+
+            # Tratamento de cota
+            if res.status_code == 429:
+                st.warning(f"⚠️ Cota atingida. Tentativa {tentativa+1}. Pausando 60s...")
+                time.sleep(60)
+                continue
+                
+            return f"Erro {res.status_code}: {res.text}"
+            
         except Exception as e:
             time.sleep(5)
             continue
-    return "Erro persistente após várias tentativas."
-
+    return "Erro persistente."
 # --- INTERFACE ---
 st.title("🛡️ Painel de Editoração - Revista Encontros Bibli")
 
@@ -169,3 +182,4 @@ if artigo_file:
                 st.markdown(res)
                 if "Erro" not in res:
                     st.download_button("📥 Baixar DOCX", gerar_docx_download(res, "Referências"), f"Ref_{artigo_file.name}", key="d3")
+
