@@ -44,11 +44,11 @@ def realizar_analise(prompt, api_key):
 
 # --- 3. INTERFACE ---
 st.title("🛡️ Painel de Editoração - Encontros Bibli")
+st.caption("Versão atualizada com as normas do Tutorial de Normalização da UFSC/EB.")
 
 with st.sidebar:
     st.header("Configuração")
     api_key_input = st.text_input("🔑 API Key:", type="password")
-    # Tenta pegar dos Secrets se o campo estiver vazio
     api_key = api_key_input if api_key_input else st.secrets.get("GEMINI_API_KEY", "")
     
     st.divider()
@@ -66,48 +66,66 @@ if arquivo:
     doc_file = Document(arquivo)
     texto_completo = "\n".join([p.text for p in doc_file.paragraphs if p.text.strip()])
     
-    st.success(f"Artigo '{arquivo.name}' pronto para análise!")
+    st.success(f"Artigo '{arquivo.name}' carregado!")
 
-    # --- 4. ABAS E BOTÕES ---
-    tab1, tab2, tab3 = st.tabs(["📐 Estrutura", "✍️ Gramática", "📚 Referências"])
+    tab1, tab2, tab3 = st.tabs(["📐 Estrutura EB", "✍️ Revisão Textual", "📚 Normas ABNT/EB"])
 
     with tab1:
-        st.subheader("Análise de Elementos Pré-textuais")
-        if st.button("Executar Análise de Estrutura"):
-            with st.spinner("Analisando..."):
-                res = realizar_analise(f"Analise a estrutura deste artigo: {texto_completo[:8000]}", api_key)
+        st.subheader("Análise conforme Tutorial Encontros Bibli")
+        if st.button("Analisar Estrutura"):
+            with st.spinner("Conferindo normas da revista..."):
+                prompt_eb = (
+                    "Aja como editor da Revista Encontros Bibli (UFSC). Analise o artigo com base no tutorial de normalização da revista: "
+                    "1. TÍTULO: Deve ser claro e conciso. Verifique se há versão em inglês. "
+                    "2. RESUMO: Deve ser informativo, conter objetivo, metodologia, resultados e conclusões (mín. 150, máx. 250 palavras). "
+                    "3. PALAVRAS-CHAVE: Devem ser de 3 a 5, separadas por ponto (.) conforme norma da revista. "
+                    "4. SEÇÕES: Verifique se a estrutura segue a lógica: Introdução, Revisão, Metodologia, Resultados/Discussão e Conclusão. "
+                    "Apresente as inadequações encontradas. NÃO RESUMA O ARTIGO. "
+                    f"\n\nTexto:\n{texto_completo[:10000]}"
+                )
+                res = realizar_analise(prompt_eb, api_key)
                 st.markdown(res)
                 if "Erro" not in res:
-                    st.download_button("📥 Baixar Relatório", gerar_docx(res, "Estrutura"), f"Estrutura_{arquivo.name}")
+                    st.download_button("📥 Baixar Relatório", gerar_docx(res, "Estrutura_EB"), f"Estrutura_EB_{arquivo.name}")
 
     with tab2:
-        st.subheader("Revisão Gramatical e Ortográfica")
-        if st.button("Executar Revisão de Texto"):
-            # Processamento em blocos para evitar erros de limite
+        st.subheader("Revisão de Escrita Científica")
+        if st.button("Executar Revisão"):
             blocos = [texto_completo[i:i+15000] for i in range(0, len(texto_completo), 15000)]
             relatorio_final = ""
             progresso = st.progress(0)
             
             for idx, bloco in enumerate(blocos):
-                st.write(f"Processando parte {idx+1}...")
-                r = realizar_analise(f"Corrija erros gramaticais: {bloco}", api_key)
+                prompt_gram = (
+                    "Realize revisão gramatical e de estilo científico. Use o tom formal exigido pela Encontros Bibli. "
+                    "Verifique clareza, coesão e objetividade. Identifique erros de ortografia e pontuação. "
+                    f"\n\nBloco:\n{bloco}"
+                )
+                r = realizar_analise(prompt_gram, api_key)
                 if r == "ERRO_COTA":
-                    st.warning("Cota excedida. Aguardando 60s...")
                     time.sleep(60)
-                    r = realizar_analise(f"Corrija erros gramaticais: {bloco}", api_key)
-                relatorio_final += f"\n### Parte {idx+1}\n{r}"
-                time.sleep(5)
+                    r = realizar_analise(prompt_gram, api_key)
+                relatorio_final += f"\n### Parte {idx+1}\n{r}\n"
+                time.sleep(4)
                 progresso.progress((idx+1)/len(blocos))
-            
             st.markdown(relatorio_final)
-            if relatorio_final and "Erro" not in relatorio_final:
-                st.download_button("📥 Baixar Relatório", gerar_docx(relatorio_final, "Gramatica"), f"Gramatica_{arquivo.name}")
+            if relatorio_final:
+                st.download_button("📥 Baixar Relatório", gerar_docx(relatorio_final, "Revisao_Gramatical"), f"Revisao_{arquivo.name}")
 
     with tab3:
-        st.subheader("Verificação de Referências (NBR 6023)")
+        st.subheader("Referências NBR 6023 (Tutorial UFSC)")
         if st.button("Validar Referências"):
-            with st.spinner("Verificando referências..."):
-                res = realizar_analise(f"Verifique as referências bibliográficas: {texto_completo[-8000:]}", api_key)
+            with st.spinner("Analisando ABNT..."):
+                prompt_ref = (
+                    "Aja como bibliotecário da UFSC. Valide as referências conforme o tutorial da revista Encontros Bibli: "
+                    "1. O título da obra deve estar em NEGRITO. "
+                    "2. Nomes de autores devem seguir o padrão: SOBRENOME, Nome. "
+                    "3. Verifique se o link DOI foi incluído e se está no formato correto (https://doi.org/...). "
+                    "4. Verifique a pontuação entre cidade, editora e ano. "
+                    "Indique as correções necessárias. "
+                    f"\n\nReferências:\n{texto_completo[-8000:]}"
+                )
+                res = realizar_analise(prompt_ref, api_key)
                 st.markdown(res)
                 if "Erro" not in res:
-                    st.download_button("📥 Baixar Relatório", gerar_docx(res, "Referencias"), f"Ref_{arquivo.name}")
+                    st.download_button("📥 Baixar Relatório", gerar_docx(res, "Referencias_EB"), f"Ref_EB_{arquivo.name}")
