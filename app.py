@@ -40,6 +40,7 @@ def gerar_docx_download(conteudo, titulo_relatorio):
     return buffer
 
 def descobrir_melhor_modelo(chave):
+    """Tenta descobrir o endpoint correto para a API Key fornecida."""
     for versao in ["v1beta", "v1"]:
         url = f"https://generativelanguage.googleapis.com/{versao}/models?key={chave}"
         try:
@@ -48,8 +49,10 @@ def descobrir_melhor_modelo(chave):
                 modelos = res.json().get('models', [])
                 for m in modelos:
                     if "gemini-1.5-flash" in m['name'] and "generateContent" in m['supportedGenerationMethods']:
+                        # Retorna o formato 'versao/nome_do_modelo'
                         return f"{versao}/{m['name']}"
-        except: continue
+        except: 
+            continue
     return None
 
 # --- 3. FUNÇÃO DE ANÁLISE COM REPETIÇÃO (ANTI-COTA) ---
@@ -67,12 +70,12 @@ def realizar_analise_robusta(prompt_texto, api_key, caminho_modelo, max_tentativ
                 return res.json()['candidates'][0]['content']['parts'][0]['text']
             elif res.status_code == 429:
                 if tentativa < max_tentativas - 1:
-                    tempo_espera = 60  # Espera 1 minuto se estourar a cota
+                    tempo_espera = 60 
                     st.warning(f"⚠️ Cota atingida. Pausando por {tempo_espera}s para retomar...")
                     time.sleep(tempo_espera)
                     continue
                 else:
-                    return "ERRO_LIMITE_DIARIO: A cota diária ou de velocidade foi excedida permanentemente."
+                    return "ERRO_LIMITE_DIARIO: A cota diária ou de velocidade foi excedida."
             else:
                 return f"Erro {res.status_code}: {res.text}"
         except Exception as e:
@@ -88,6 +91,10 @@ with st.sidebar:
     api_key_input = st.text_input("🔑 API Key do Editor:", type="password")
     api_key = api_key_input if api_key_input else st.secrets.get("GEMINI_API_KEY", "")
     
+    if st.secrets.get("GEMINI_API_KEY") and not api_key_input:
+        st.info("Utilizando chave mestra do sistema.")
+    
+    st.divider()
     if st.button("🧹 Novo Artigo"):
         st.session_state.clear()
         st.rerun()
@@ -96,13 +103,27 @@ if not api_key:
     st.warning("👈 Insira a API Key para começar.")
     st.stop()
 
+# --- CONEXÃO E DESCOBERTA DO MODELO (PLANO C INTEGRADO) ---
 with st.spinner("Conectando com Google AI..."):
     caminho_modelo = descobrir_melhor_modelo(api_key)
+    
+    if not caminho_modelo:
+        # Plano C: Tenta forçar o caminho mais provável caso a listagem falhe
+        url_teste = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+        try:
+            teste_res = requests.post(url_teste, json={"contents": [{"parts": [{"text": "hi"}]}]}, timeout=10)
+            if teste_res.status_code == 200:
+                caminho_modelo = "v1beta/models/gemini-1.5-flash"
+        except:
+            caminho_modelo = None
 
 if not caminho_modelo:
-    st.error("Modelo não encontrado. Verifique sua chave.")
+    st.error("❌ Modelo não encontrado. Verifique se sua chave está correta e ativa.")
     st.stop()
+else:
+    st.toast("Conectado com sucesso!", icon="✅")
 
+# --- FLUXO DE ARQUIVO ---
 artigo_file = st.file_uploader("📂 Subir Artigo (DOCX)", type="docx")
 
 if artigo_file:
@@ -115,13 +136,14 @@ if artigo_file:
 
     with tab1:
         if st.button("Analisar Estrutura", key="b1"):
-            res = realizar_analise_robusta(f"Verifique títulos e resumos: {texto_artigo[:8000]}\nNormas: {texto_tutorial}", api_key, caminho_modelo)
-            st.markdown(res)
-            st.download_button("📥 Baixar DOCX", gerar_docx_download(res, "Estrutura"), f"Estrutura_{artigo_file.name}", key="d1")
+            with st.spinner("Analisando..."):
+                res = realizar_analise_robusta(f"Verifique títulos e resumos: {texto_artigo[:8000]}\nNormas: {texto_tutorial}", api_key, caminho_modelo)
+                st.markdown(res)
+                if "Erro" not in res:
+                    st.download_button("📥 Baixar DOCX", gerar_docx_download(res, "Estrutura"), f"Estrutura_{artigo_file.name}", key="d1")
 
     with tab2:
         if st.button("Analisar Gramática", key="b2"):
-            # Aumentado para 25k para reduzir o número de requisições
             tamanho = 25000 
             blocos = [texto_artigo[i:i+tamanho] for i in range(0, len(texto_artigo), tamanho)]
             relatorio = ""
@@ -131,17 +153,19 @@ if artigo_file:
             for idx, b in enumerate(blocos):
                 status.text(f"Analisando parte {idx+1} de {len(blocos)}...")
                 r = realizar_analise_robusta(f"Revisão ortográfica e citações ABNT: {b}", api_key, caminho_modelo)
-                
                 relatorio += f"\n### Parte {idx+1}\n{r}"
-                time.sleep(10) # Pausa obrigatória de 10s entre blocos
+                time.sleep(10) 
                 prog.progress((idx+1)/len(blocos))
                 
             status.empty()
             st.markdown(relatorio)
-            st.download_button("📥 Baixar DOCX", gerar_docx_download(relatorio, "Gramática"), f"Gramatica_{artigo_file.name}", key="d2")
+            if relatorio:
+                st.download_button("📥 Baixar DOCX", gerar_docx_download(relatorio, "Gramática"), f"Gramatica_{artigo_file.name}", key="d2")
 
     with tab3:
         if st.button("Analisar Referências", key="b3"):
-            res = realizar_analise_robusta(f"Verifique ABNT 6023: {texto_artigo[int(len(texto_artigo)*0.7):]}", api_key, caminho_modelo)
-            st.markdown(res)
-            st.download_button("📥 Baixar DOCX", gerar_docx_download(res, "Referências"), f"Ref_{artigo_file.name}", key="d3")
+            with st.spinner("Analisando..."):
+                res = realizar_analise_robusta(f"Verifique ABNT 6023: {texto_artigo[int(len(texto_artigo)*0.7):]}", api_key, caminho_modelo)
+                st.markdown(res)
+                if "Erro" not in res:
+                    st.download_button("📥 Baixar DOCX", gerar_docx_download(res, "Referências"), f"Ref_{artigo_file.name}", key="d3")
