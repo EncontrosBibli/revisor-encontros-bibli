@@ -3,6 +3,7 @@ from docx import Document
 from PyPDF2 import PdfReader
 import requests
 import os
+import time # incluindo um mecanismo de pausa (time.sleep) para não sobrecarregar a API
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Editoria Encontros Bibli", layout="wide", page_icon="🛡️")
@@ -95,38 +96,49 @@ if artigo_file:
 
     with tab2:
         if st.button("Executar Revisão Linguística"):
-            with st.spinner("Analisando gramática e citações por partes..."):
-                # Dividindo o texto em pedaços para evitar cortes (aprox. 4000 caracteres por bloco)
-                tamanho_bloco = 4000
+            with st.spinner("Analisando gramática e citações de forma robusta..."):
+                # Aumentamos o bloco para 8000 caracteres para reduzir o número de partes
+                tamanho_bloco = 8000 
                 blocos = [texto_artigo[i:i + tamanho_bloco] for i in range(0, len(texto_artigo), tamanho_bloco)]
                 
                 relatorio_final = ""
                 progresso = st.progress(0)
+                placeholder_status = st.empty() # Para mostrar em qual parte está
                 
                 for idx, bloco in enumerate(blocos):
+                    placeholder_status.text(f"Analisando bloco {idx+1} de {len(blocos)}...")
+                    
                     prompt = f"""
-                    Você é um revisor linguístico de periódicos científicos. 
-                    Analise este TRECHO do artigo (Parte {idx+1} de {len(blocos)}).
+                    Atue como Revisor Linguístico Sênior. Analise o TRECHO abaixo:
+                    1. Ortografia/Gramática (PT, EN ou ES).
+                    2. Citações ABNT (recuo 4cm p/ >3 linhas).
                     
-                    TAREFAS:
-                    1. Identifique ERROS de ortografia, gramática e concordância (PT, EN ou ES).
-                    2. Verifique citações (norma ABNT: recuo 4cm para >3 linhas).
+                    Formato de resposta:
+                    ❌ ERRO: [Original]
+                    ✔️ SUGESTÃO: [Correção]
+                    (Se não houver erros, diga: "OK")
                     
-                    FORMATO:
-                    ❌ ERRO: [Texto original]
-                    ✔️ SUGESTÃO: [Texto corrigido ou regra]
-                    
-                    Se não houver erros neste trecho, responda apenas: "Trecho OK".
-                    TRECHO: {bloco}
+                    TRECHO:
+                    {bloco}
                     """
-                    resultado_parcial = realizar_analise(prompt)
-                    if "Trecho OK" not in resultado_parcial:
-                        relatorio_final += f"\n### Análise da Parte {idx+1}\n" + resultado_parcial
+                    
+                    try:
+                        resultado_parcial = realizar_analise(prompt)
+                        if "OK" not in resultado_parcial.upper():
+                            relatorio_final += f"\n### Seção {idx+1}\n" + resultado_parcial
+                        
+                        # Pequena pausa para não dar erro de limite (Rate Limit)
+                        time.sleep(2) 
+                        
+                    except Exception as e:
+                        relatorio_final += f"\n⚠️ Erro na Seção {idx+1}: O sistema não conseguiu processar esta parte."
                     
                     progresso.progress((idx + 1) / len(blocos))
                 
+                placeholder_status.empty() # Limpa o status ao terminar
+                
                 if relatorio_final == "":
-                    st.success("Nenhum erro linguístico ou de citação encontrado!")
+                    st.success("Nenhum erro encontrado nos blocos analisados.")
                 else:
                     st.markdown(relatorio_final)
 
