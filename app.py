@@ -9,7 +9,7 @@ from io import BytesIO
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Editoria Encontros Bibli", layout="wide", page_icon="🛡️")
 
-# --- 1. GESTÃO DO TUTORIAL (ENDEREÇO FIXO) ---
+# --- 1. GESTÃO DO TUTORIAL ---
 URL_TUTORIAL = "https://periodicos.ufsc.br/index.php/eb/libraryFiles/downloadPublic/710"
 CAMINHO_LOCAL_TUTORIAL = "tutorial_encontros_bibli.pdf"
 
@@ -23,13 +23,9 @@ def baixar_e_ler_tutorial():
         texto = "\n".join([page.extract_text() for page in pdf.pages])
         return texto
     except Exception as e:
-        return f"Erro ao acessar diretrizes online: {e}"
+        return f"Erro ao acessar diretrizes: {e}"
 
 # --- 2. FUNÇÕES DE APOIO ---
-def limpar_sessao():
-    st.session_state.clear()
-    st.rerun()
-
 def gerar_docx_download(conteudo, titulo_relatorio):
     doc_out = Document()
     doc_out.add_heading(titulo_relatorio, 0)
@@ -43,10 +39,11 @@ def gerar_docx_download(conteudo, titulo_relatorio):
     buffer.seek(0)
     return buffer
 
-# --- 3. FUNÇÃO DE ANÁLISE COM FALLBACK (CORREÇÃO DO ERRO 404) ---
+# --- 3. A FUNÇÃO "BLINDADA" (CORREÇÃO DO ERRO 404) ---
 def realizar_analise(prompt_texto, api_key):
-    # Lista de URLs para tentar (v1beta costuma ser a mais estável para o Flash 1.5)
-    urls_para_testar = [
+    # Lista de endpoints possíveis para o Gemini 1.5 Flash
+    # Tentamos v1beta e v1, com e sem o prefixo 'models/'
+    endpoints = [
         f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}",
         f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={api_key}"
     ]
@@ -56,19 +53,19 @@ def realizar_analise(prompt_texto, api_key):
         "generationConfig": {"temperature": 0.1, "maxOutputTokens": 8192}
     }
     
-    ultima_resposta = ""
-    for url in urls_para_testar:
+    ultimo_erro = ""
+    for url in endpoints:
         try:
             res = requests.post(url, json=payload, timeout=60)
             if res.status_code == 200:
                 return res.json()['candidates'][0]['content']['parts'][0]['text']
             elif res.status_code == 429:
                 return "ERRO_COTA"
-            ultima_resposta = f"Erro {res.status_code}: {res.text}"
+            ultimo_erro = f"Erro {res.status_code}: {res.text}"
         except Exception as e:
-            ultima_resposta = f"Erro de conexão: {e}"
+            ultimo_erro = f"Erro de conexão: {e}"
             
-    return ultima_resposta
+    return ultimo_erro
 
 # --- INTERFACE ---
 st.title("🛡️ Painel de Editoração - Revista Encontros Bibli")
@@ -76,67 +73,62 @@ st.title("🛡️ Painel de Editoração - Revista Encontros Bibli")
 with st.sidebar:
     st.header("Configurações")
     api_key_input = st.text_input("🔑 API Key do Editor:", type="password")
-    # Prioriza a chave digitada, se não houver, tenta a do Secrets
     api_key = api_key_input if api_key_input else st.secrets.get("GEMINI_API_KEY", "")
     
     if st.secrets.get("GEMINI_API_KEY") and not api_key_input:
-        st.info("Utilizando chave mestra do sistema.")
+        st.info("Utilizando chave mestra.")
     
-    st.divider()
-    if st.button("🧹 Limpar e Novo Artigo"):
-        limpar_sessao()
+    if st.button("🧹 Novo Artigo"):
+        st.session_state.clear()
+        st.rerun()
 
 if not api_key:
-    st.warning("👈 Por favor, insira a API Key para ativar os módulos.")
+    st.warning("👈 Insira a API Key.")
     st.stop()
 
 artigo_file = st.file_uploader("📂 Subir Artigo (DOCX)", type="docx")
 
 if artigo_file:
-    with st.spinner("⏳ Processando documentos..."):
+    with st.spinner("⏳ Lendo documentos..."):
         doc = Document(artigo_file)
         texto_artigo = "\n".join([p.text.strip() for p in doc.paragraphs if p.text.strip()])
         texto_tutorial = baixar_e_ler_tutorial()
 
-    st.success("✅ Pronto para análise!")
-    tab1, tab2, tab3 = st.tabs(["📐 Estrutura", "✍️ Gramática & Citações", "📚 Referências"])
+    tab1, tab2, tab3 = st.tabs(["📐 Estrutura", "✍️ Gramática", "📚 Referências"])
 
-    # --- TAB 1: ESTRUTURA ---
+    # --- TAB 1 ---
     with tab1:
-        if st.button("Analisar Estrutura", key="btn_est"):
-            with st.spinner("Analisando..."):
-                prompt = f"REVISOR RIGOROSO: Verifique títulos bilingues, resumo (100-250 palavras) e palavras-chave. Texto: {texto_artigo[:8000]}\nNormas: {texto_tutorial}"
-                res = realizar_analise(prompt, api_key)
+        if st.button("Analisar Estrutura", key="b1"):
+            with st.spinner("Processando..."):
+                res = realizar_analise(f"Verifique estrutura e resumos conforme: {texto_tutorial}\nArtigo: {texto_artigo[:8000]}", api_key)
                 st.markdown(res)
                 if "Erro" not in res:
-                    st.download_button("📥 Salvar Relatório (.docx)", gerar_docx_download(res, "Relatório de Estrutura"), f"Estrutura_{artigo_file.name}", key="dl_est")
+                    st.download_button("📥 Salvar DOCX", gerar_docx_download(res, "Estrutura"), f"Estrutura_{artigo_file.name}", key="d1")
 
-    # --- TAB 2: GRAMÁTICA (COM CHUNKING) ---
+    # --- TAB 2 ---
     with tab2:
-        if st.button("Analisar Gramática", key="btn_gram"):
-            with st.spinner("Revisando por partes..."):
-                tamanho = 12000
-                blocos = [texto_artigo[i:i+tamanho] for i in range(0, len(texto_artigo), tamanho)]
-                relatorio = ""
-                prog = st.progress(0)
-                for idx, b in enumerate(blocos):
-                    r = realizar_analise(f"Revisão ortográfica (PT/EN/ES) e citações ABNT: {b}", api_key)
-                    if r == "ERRO_COTA":
-                        st.warning("Pausa de cota... aguardando 10s.")
-                        time.sleep(10)
-                        r = realizar_analise(f"Revisão ortográfica (PT/EN/ES) e citações ABNT: {b}", api_key)
-                    relatorio += f"\n### Parte {idx+1}\n{r}"
-                    time.sleep(4)
-                    prog.progress((idx+1)/len(blocos))
-                st.markdown(relatorio)
-                if relatorio:
-                    st.download_button("📥 Salvar Relatório (.docx)", gerar_docx_download(relatorio, "Revisão Linguística"), f"Gramatica_{artigo_file.name}", key="dl_gram")
+        if st.button("Analisar Gramática", key="b2"):
+            tamanho = 12000
+            blocos = [texto_artigo[i:i+tamanho] for i in range(0, len(texto_artigo), tamanho)]
+            relatorio = ""
+            prog = st.progress(0)
+            for idx, b in enumerate(blocos):
+                r = realizar_analise(f"Revisão ortográfica e citações ABNT: {b}", api_key)
+                if r == "ERRO_COTA":
+                    time.sleep(10)
+                    r = realizar_analise(f"Revisão ortográfica e citações ABNT: {b}", api_key)
+                relatorio += f"\n### Parte {idx+1}\n{r}"
+                time.sleep(4)
+                prog.progress((idx+1)/len(blocos))
+            st.markdown(relatorio)
+            if relatorio:
+                st.download_button("📥 Salvar DOCX", gerar_docx_download(relatorio, "Gramática"), f"Gramatica_{artigo_file.name}", key="d2")
 
-    # --- TAB 3: REFERÊNCIAS ---
+    # --- TAB 3 ---
     with tab3:
-        if st.button("Analisar Referências", key="btn_ref"):
-            with st.spinner("Analisando..."):
-                res = realizar_analise(f"Verifique ABNT 6023 (Negrito no título): {texto_artigo[int(len(texto_artigo)*0.7):]}", api_key)
+        if st.button("Analisar Referências", key="b3"):
+            with st.spinner("Processando..."):
+                res = realizar_analise(f"Verifique ABNT 6023: {texto_artigo[int(len(texto_artigo)*0.7):]}", api_key)
                 st.markdown(res)
                 if "Erro" not in res:
-                    st.download_button("📥 Salvar Relatório (.docx)", gerar_docx_download(res, "Referências"), f"Ref_{artigo_file.name}", key="dl_ref")
+                    st.download_button("📥 Salvar DOCX", gerar_docx_download(res, "Referências"), f"Ref_{artigo_file.name}", key="d3")
