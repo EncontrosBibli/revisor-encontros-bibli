@@ -1,4 +1,5 @@
 streamlit
 python-docx
 PyPDF2
+google-generativeai
 requests
