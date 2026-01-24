@@ -8,7 +8,7 @@ from io import BytesIO
 st.set_page_config(
     page_title="Editoria Encontros Bibli", 
     layout="wide", 
-    page_icon="🛡️"
+    page_icon="logo_revista.png" # Nome do arquivo local
 )
 
 # --- 2. ESTILIZAÇÃO CSS (Baseado na imagem enviada) ---
@@ -214,6 +214,7 @@ if artigo_file:
                 res = realizar_analise(prompt_referencias, api_key)
                 st.markdown(res)
                 st.download_button("📥 Baixar Relatório de Referências", gerar_docx(res, "Referencias_ABNT"), "referencias.docx")
+
 
 
 
