@@ -4,8 +4,65 @@ import google.generativeai as genai
 import time
 from io import BytesIO
 
-# --- 1. CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="Editoria Encontros Bibli", layout="wide", page_icon="🛡️")
+# --- 1. CONFIGURAÇÃO DA PÁGINA E LOGO ---
+st.set_page_config(
+    page_title="Editoria Encontros Bibli", 
+    layout="wide", 
+    page_icon="🛡️"
+)
+
+# Injeção de CSS para mudar o visual (Cores da UFSC/Encontros Bibli)
+st.markdown("""
+    <style>
+    /* Cor de fundo e fonte */
+    .stApp {
+        background-color: #f8f9fa;
+    }
+    /* Estilização da Barra Lateral */
+    [data-testid="stSidebar"] {
+        background-color: #ffffff;
+        border-right: 2px solid #005da3;
+    }
+    /* Títulos e textos */
+    h1, h2, h3 {
+        color: #005da3 !important;
+        font-family: 'Arial Black', sans-serif;
+    }
+    /* Botões personalizados */
+    .stButton>button {
+        width: 100%;
+        border-radius: 8px;
+        background-color: #005da3;
+        color: white;
+        font-weight: bold;
+        border: none;
+        height: 3em;
+        transition: 0.3s;
+    }
+    .stButton>button:hover {
+        background-color: #003d6b;
+        color: #ffcc00; /* Destaque em dourado no hover */
+    }
+    /* Estilo das abas */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 10px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: 50px;
+        background-color: #e9ecef;
+        border-radius: 5px 5px 0px 0px;
+        gap: 1px;
+        padding: 10px;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #005da3 !important;
+        color: white !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# Exibe a logo no topo da barra lateral
+st.sidebar.image("https://periodicos.ufsc.br/public/journals/1/pageHeaderLogoImage_pt_BR.png", use_container_width=True)
 
 # --- 2. FUNÇÕES DE APOIO ---
 def gerar_docx(conteudo, titulo):
@@ -123,4 +180,5 @@ if artigo_file:
                 res = realizar_analise(prompt_referencias, api_key)
                 st.markdown(res)
                 st.download_button("📥 Baixar Relatório de Referências", gerar_docx(res, "Referencias_ABNT"), "referencias.docx")
+
 
