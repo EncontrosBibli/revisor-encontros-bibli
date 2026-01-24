@@ -123,7 +123,7 @@ def realizar_analise(prompt, api_key):
         return f"❌ Erro na API: {str(e)}"
 
 # --- 3. INTERFACE ---
-st.title("🛡️ Painel de Editoração - Encontros Bibli")
+st.title(" Painel de Editoração - Encontros Bibli")
 st.markdown("### Sistema de Revisão Sincronizado (Tutorial 10/04/2025)")
 
 with st.sidebar:
@@ -212,6 +212,7 @@ if artigo_file:
                 res = realizar_analise(prompt_referencias, api_key)
                 st.markdown(res)
                 st.download_button("📥 Baixar Relatório de Referências", gerar_docx(res, "Referencias_ABNT"), "referencias.docx")
+
 
 
 
