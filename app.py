@@ -80,10 +80,10 @@ st.markdown("""
 st.markdown("""
     <div class="main-header">
         <h1>
-            <span style="background-color: white; color: #70298d; padding: 2px 8px; border-radius: 4px; margin-right: 10px; font-family: 'Arial Black', sans-serif;">EB</span>
+            <span class="logo-eb">EB</span>
             Editor de Encontros Bibli
         </h1>
-        <p>Sistema de Revisão Técnica - Tutorial 2025</p>
+        <p>Sistema de Revisão Técnica - Tutorial 10/04/2025</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -212,6 +212,7 @@ if artigo_file:
                 res = realizar_analise(prompt_referencias, api_key)
                 st.markdown(res)
                 st.download_button("📥 Baixar Relatório de Referências", gerar_docx(res, "Referencias_ABNT"), "referencias.docx")
+
 
 
 
