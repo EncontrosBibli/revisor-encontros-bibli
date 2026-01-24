@@ -77,7 +77,15 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # Aplicação do cabeçalho (O que está aqui aparecerá em branco)
-st.markdown('<div class="main-header"><h1>🛡️ Editor de Encontros Bibli</h1><p>Sistema de Revisão Técnica - Tutorial 2025</p></div>', unsafe_allow_html=True)
+st.markdown("""
+    <div class="main-header">
+        <h1>
+            <span style="background-color: white; color: #70298d; padding: 2px 8px; border-radius: 4px; margin-right: 10px; font-family: 'Arial Black', sans-serif;">EB</span>
+            Editor de Encontros Bibli
+        </h1>
+        <p>Sistema de Revisão Técnica - Tutorial 2025</p>
+    </div>
+    """, unsafe_allow_html=True)
 
 # --- 3. LOGO (Carregando seu arquivo local) ---
 # Lembre-se de salvar sua imagem como "logo_revista.png" na mesma pasta
@@ -204,6 +212,7 @@ if artigo_file:
                 res = realizar_analise(prompt_referencias, api_key)
                 st.markdown(res)
                 st.download_button("📥 Baixar Relatório de Referências", gerar_docx(res, "Referencias_ABNT"), "referencias.docx")
+
 
 
 
