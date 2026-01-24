@@ -11,45 +11,93 @@ st.set_page_config(
     page_icon="🛡️"
 )
 
-# --- 2. ESTILIZAÇÃO CSS (Cores Oficiais Encontros Bibli) ---
+# --- 2. ESTILIZAÇÃO CSS (Baseado na imagem enviada) ---
+# Cores identificadas: Roxo (#70298d), Fundo Cinza (#f0f2f5), Branco (#ffffff)
 st.markdown("""
     <style>
+    /* Fundo da página */
     .stApp {
-        background-color: #f4f4f4;
+        background-color: #f0f2f5;
     }
+    
+    /* Barra Lateral - Roxo Encontros Bibli */
     [data-testid="stSidebar"] {
-        background-color: #004276;
+        background-color: #70298d;
     }
-    [data-testid="stSidebar"] .stMarkdown p, [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2 {
+    
+    /* Texto da barra lateral em branco */
+    [data-testid="stSidebar"] .stMarkdown p, [data-testid="stSidebar"] h1, 
+    [data-testid="stSidebar"] h2, [data-testid="stSidebar"] label {
         color: white !important;
     }
-    h1, h2, h3 {
-        color: #004276 !important;
-        font-family: 'Arial Black', sans-serif;
+
+    /* Cabeçalho principal (Simulando a faixa roxa da imagem) */
+    .main-header {
+        background-color: #70298d;
+        padding: 20px;
+        border-radius: 0px 0px 10px 10px;
+        color: white;
+        margin-bottom: 25px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
+
+    /* Títulos em Roxo */
+    h1, h2, h3 {
+        color: #70298d !important;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    /* Botões: Roxo com letras brancas */
     .stButton>button {
         width: 100%;
-        border-radius: 4px;
-        background-color: #004276;
+        border-radius: 8px;
+        background-color: #70298d;
         color: white;
-        font-weight: 600;
+        font-weight: bold;
         border: none;
+        padding: 0.6rem;
+        transition: 0.3s;
     }
+
+    /* Hover do botão - Roxo mais escuro */
     .stButton>button:hover {
-        background-color: #005da3;
+        background-color: #5a2172;
         color: white;
-        border: 1px solid white;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+
+    /* Estilo dos cartões (Tabs e containers) */
+    .stTabs {
+        background-color: #ffffff;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
+
+    /* Estilo das Abas */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 10px;
     }
     .stTabs [aria-selected="true"] {
-        background-color: #004276 !important;
+        background-color: #70298d !important;
         color: white !important;
+        border-radius: 8px 8px 0px 0px;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# Logo na barra lateral
-st.sidebar.image("https://periodicos.ufsc.br/public/journals/1/pageHeaderLogoImage_pt_BR.png", use_container_width=True)
+# Cabeçalho visual customizado
+st.markdown('<div class="main-header"><h1>🛡️ Editor de Encontros Bibli</h1><p>Sistema de Revisão Técnica - Sincronizado com Tutorial 2025</p></div>', unsafe_allow_html=True)
 
+# --- 3. LOGO (Carregando seu arquivo local) ---
+# Lembre-se de salvar sua imagem como "logo_revista.png" na mesma pasta
+try:
+    st.sidebar.image("logo_revista.png", use_container_width=True)
+except:
+    # Fallback caso não encontre o arquivo local
+    st.sidebar.write("## Encontros Bibli")
+
+st.sidebar.markdown("---")
 # --- 2. FUNÇÕES DE APOIO ---
 def gerar_docx(conteudo, titulo):
     doc = Document()
@@ -166,6 +214,7 @@ if artigo_file:
                 res = realizar_analise(prompt_referencias, api_key)
                 st.markdown(res)
                 st.download_button("📥 Baixar Relatório de Referências", gerar_docx(res, "Referencias_ABNT"), "referencias.docx")
+
 
 
 
