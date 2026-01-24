@@ -11,11 +11,10 @@ st.set_page_config(
     page_icon="logo_revista.png" # Nome do arquivo local
 )
 
-# --- 2. ESTILIZAÇÃO CSS (Baseado na imagem enviada) ---
-# Cores identificadas: Roxo (#70298d), Fundo Cinza (#f0f2f5), Branco (#ffffff)
+# --- 2. ESTILIZAÇÃO CSS ATUALIZADA ---
 st.markdown("""
     <style>
-    /* Fundo da página */
+    /* Fundo geral da página */
     .stApp {
         background-color: #f0f2f5;
     }
@@ -25,69 +24,60 @@ st.markdown("""
         background-color: #70298d;
     }
     
-    /* Texto da barra lateral em branco */
+    /* Texto da barra lateral SEMPRE em branco */
     [data-testid="stSidebar"] .stMarkdown p, [data-testid="stSidebar"] h1, 
     [data-testid="stSidebar"] h2, [data-testid="stSidebar"] label {
         color: white !important;
     }
 
-    /* Cabeçalho principal (Simulando a faixa roxa da imagem) */
+    /* CABEÇALHO PRINCIPAL - Tudo aqui dentro fica BRANCO */
     .main-header {
         background-color: #70298d;
-        padding: 20px;
+        padding: 25px;
         border-radius: 0px 0px 10px 10px;
-        color: white;
+        color: white !important; /* Texto base branco */
         margin-bottom: 25px;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
-
-    /* Títulos em Branco */
-    h1, h2, h3 {
-        color: #ffffff !important;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    
+    .main-header h1, .main-header p {
+        color: white !important; /* Garante que o H1 e o P do topo sejam brancos */
+        margin: 0;
     }
 
-    /* Botões: Roxo com letras brancas */
+    /* TÍTULOS DO CORPO - Em preto/cinza escuro para leitura */
+    h1, h2, h3 {
+        color: #31333f !important; 
+        font-family: 'Segoe UI', sans-serif;
+    }
+
+    /* Botões: Roxo */
     .stButton>button {
         width: 100%;
         border-radius: 8px;
         background-color: #70298d;
-        color: white;
+        color: white !important;
         font-weight: bold;
         border: none;
-        padding: 0.6rem;
-        transition: 0.3s;
     }
 
-    /* Hover do botão - Roxo mais escuro */
+    /* Efeito de Hover do Botão */
     .stButton>button:hover {
         background-color: #5a2172;
-        color: white;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        color: white !important;
     }
 
-    /* Estilo dos cartões (Tabs e containers) */
+    /* Tabs e Cartões */
     .stTabs {
         background-color: #ffffff;
         padding: 20px;
         border-radius: 12px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-    }
-
-    /* Estilo das Abas */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 10px;
-    }
-    .stTabs [aria-selected="true"] {
-        background-color: #70298d !important;
-        color: white !important;
-        border-radius: 8px 8px 0px 0px;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# Cabeçalho visual customizado
-st.markdown('<div class="main-header"><h1>🛡️ Editor de Encontros Bibli</h1><p>Sistema de Revisão Técnica - Sincronizado com Tutorial 2025</p></div>', unsafe_allow_html=True)
+# Aplicação do cabeçalho (O que está aqui aparecerá em branco)
+st.markdown('<div class="main-header"><h1>🛡️ Editor de Encontros Bibli</h1><p>Sistema de Revisão Técnica - Tutorial 2025</p></div>', unsafe_allow_html=True)
 
 # --- 3. LOGO (Carregando seu arquivo local) ---
 # Lembre-se de salvar sua imagem como "logo_revista.png" na mesma pasta
@@ -214,6 +204,7 @@ if artigo_file:
                 res = realizar_analise(prompt_referencias, api_key)
                 st.markdown(res)
                 st.download_button("📥 Baixar Relatório de Referências", gerar_docx(res, "Referencias_ABNT"), "referencias.docx")
+
 
 
 
