@@ -4,6 +4,13 @@ import google.generativeai as genai
 import time
 from io import BytesIO
 
+Para deixar o visual do seu app idêntico ao portal da Encontros Bibli, utilizei a paleta exata de azuis e cinzas do site da revista. Foquei no azul institucional da UFSC e na sobriedade que um painel editorial exige.
+
+Aqui está o código atualizado. Substitua o bloco de CSS no seu app.py:
+
+🎨 Visual Customizado: Encontros Bibli Edition
+Python
+
 # --- 1. CONFIGURAÇÃO DA PÁGINA E LOGO ---
 st.set_page_config(
     page_title="Editoria Encontros Bibli", 
@@ -11,59 +18,79 @@ st.set_page_config(
     page_icon="🛡️"
 )
 
-# Injeção de CSS para mudar o visual (Cores da UFSC/Encontros Bibli)
+# Injeção de CSS com as cores exatas da Encontros Bibli
 st.markdown("""
     <style>
-    /* Cor de fundo e fonte */
+    /* Fundo principal em cinza muito claro (padrão OJS) */
     .stApp {
-        background-color: #f8f9fa;
+        background-color: #f4f4f4;
     }
-    /* Estilização da Barra Lateral */
+    
+    /* Barra Lateral - Azul Marinho Encontros Bibli */
     [data-testid="stSidebar"] {
-        background-color: #ffffff;
-        border-right: 2px solid #005da3;
+        background-color: #004276; /* Azul Escuro Institucional */
+        color: white;
     }
-    /* Títulos e textos */
+    
+    /* Ajuste de cor dos textos da barra lateral */
+    [data-testid="stSidebar"] .stMarkdown p, [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2 {
+        color: white !important;
+    }
+
+    /* Cabeçalhos da Página */
     h1, h2, h3 {
-        color: #005da3 !important;
+        color: #004276 !important;
         font-family: 'Arial Black', sans-serif;
+        border-bottom: 2px solid #004276;
+        padding-bottom: 10px;
     }
-    /* Botões personalizados */
+
+    /* Botões: Azul Primário com texto Branco */
     .stButton>button {
         width: 100%;
-        border-radius: 8px;
-        background-color: #005da3;
+        border-radius: 4px;
+        background-color: #004276;
         color: white;
-        font-weight: bold;
         border: none;
-        height: 3em;
-        transition: 0.3s;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1px;
     }
+
+    /* Efeito de Hover (Passar o mouse) - Azul mais claro */
     .stButton>button:hover {
-        background-color: #003d6b;
-        color: #ffcc00; /* Destaque em dourado no hover */
+        background-color: #005da3;
+        color: #ffffff;
+        border: 1px solid #ffffff;
     }
-    /* Estilo das abas */
+
+    /* Abas Selecionadas */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 10px;
-    }
-    .stTabs [data-baseweb="tab"] {
-        height: 50px;
-        background-color: #e9ecef;
-        border-radius: 5px 5px 0px 0px;
-        gap: 1px;
+        gap: 8px;
+        background-color: #ffffff;
         padding: 10px;
+        border-radius: 10px 10px 0 0;
     }
+
     .stTabs [aria-selected="true"] {
-        background-color: #005da3 !important;
+        background-color: #004276 !important;
         color: white !important;
+        font-weight: bold;
+    }
+
+    /* Estilo dos Widgets (Uploader e inputs) */
+    .stFileUploader {
+        background-color: white;
+        padding: 20px;
+        border-radius: 10px;
+        border: 1px dashed #004276;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# Exibe a logo no topo da barra lateral
+# Exibe a logo oficial
 st.sidebar.image("https://periodicos.ufsc.br/public/journals/1/pageHeaderLogoImage_pt_BR.png", use_container_width=True)
-
+st.sidebar.markdown("---")
 # --- 2. FUNÇÕES DE APOIO ---
 def gerar_docx(conteudo, titulo):
     doc = Document()
@@ -180,5 +207,6 @@ if artigo_file:
                 res = realizar_analise(prompt_referencias, api_key)
                 st.markdown(res)
                 st.download_button("📥 Baixar Relatório de Referências", gerar_docx(res, "Referencias_ABNT"), "referencias.docx")
+
 
 
