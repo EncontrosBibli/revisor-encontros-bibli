@@ -119,40 +119,57 @@ if artigo_file:
 
 # --- ABA 1: MAQUETAÇÃO (Atualizada com Tipologia) ---
     with tab1:
-        st.subheader("Análise de Maquetação e Identidade Visual")
+        st.subheader("Análise de Maquetação, Formatação e Ilustrações")
         if st.button("Executar Análise de Forma"):
-            with st.spinner("Conferindo normas e tipologia..."):
+            with st.spinner("Conferindo normas, ilustrações e tipologia..."):
                 prompt = (
-                    "Aja como Editor de Layout da Revista Encontros Bibli. Analise o artigo conforme o Tutorial de 10/04/2025:\n\n"
-                    "1. TIPOLOGIA DO DOCUMENTO (Cabeçalho da 1ª página):\n"
-                    "   - Verifique se a tipologia está identificada corretamente.\n"
-                    "   - Tipos aceitos: Artigo original, Artigo de dados, Ensaio ou Estudo de casos.\n"
-                    "   - IMPORTANTE: Se o artigo estiver em Inglês ou Espanhol, a tipologia DEVE ser traduzida adequadamente (ex: 'Original Article', 'Artículo original').\n\n"
-                    "2. TÍTULOS:\n"
+                    "Aja como Editor de Layout da Revista Encontros Bibli. Analise o artigo conforme o Tutorial de 10/04/2025 e o Template oficial:\n\n"
+                    "1. TIPOLOGIA (Cabeçalho da 1ª página):\n"
+                    "   - Verificar: Artigo original, Artigo de dados, Ensaio ou Estudo de casos.\n"
+                    "   - Traduzir a tipologia se o artigo for em EN ou ES.\n\n"
+                    "2. CORPO DO TEXTO (Formatação):\n"
+                    "   - Alinhamento: Deve ser JUSTIFICADO.\n"
+                    "   - Recuo: Início de parágrafo deve ter recuo de 1,25 cm.\n"
+                    "   - Espaçamento: Entre linhas deve ser 1,5.\n"
+                    "   - Verifique se há espaços duplos desnecessários entre parágrafos.\n\n"
+                    "3. ILUSTRAÇÕES (Tabelas, Quadros e Figuras):\n"
+                    "   - Referenciação: Devem ser citadas no corpo do texto antes de aparecerem (ex: 'conforme a Tabela 1...').\n"
+                    "   - Identificação: Título acima da ilustração (ex: Tabela 1 – Título).\n"
+                    "   - Fontes: Devem ter a indicação da fonte logo abaixo da ilustração (ex: Fonte: Dados da pesquisa (2025)).\n\n"
+                    "4. TÍTULOS E METADADOS:\n"
                     "   - Título PT: Arial Black, 16, MAIÚSCULO, Negrito.\n"
-                    "   - Título EN: Arial, 10, minúsculo, Negrito.\n\n"
-                    "3. RESUMO ESTRUTURADO: Deve conter explicitamente Objetivo, Método, Resultado e Conclusões (Arial 9).\n\n"
-                    "4. PALAVRAS-CHAVE: 3 a 5 termos separados obrigatoriamente por PONTO (.).\n\n"
-                    "5. LIMPEZA E EDITORES: Deletar frases 'uso exclusivo' e verificar se constam os nomes oficiais da equipe editorial (Edgar Bisset, Patrícia Neubert, Genilson Geraldo, etc).\n"
-                    f"\nTexto para análise:\n{texto_artigo[:12000]}"
+                    "   - Título EN: Arial, 10, minúsculo, Negrito.\n"
+                    "   - Palavras-chave: 3 a 5 termos separados por PONTO (.).\n"
+                    "   - Remover menções a 'uso exclusivo'.\n"
+                    f"\nTexto para análise:\n{texto_artigo[:15000]}"
                 )
                 res = realizar_analise(prompt, api_key)
                 st.markdown(res)
                 st.download_button("📥 Baixar Relatório", gerar_docx(res, "Revisao_Maquetacao"), "maquetacao.docx")
-
     with tab2:
-        st.subheader("Revisão Linguística e Citações")
+        st.subheader("Revisão Linguística, Citações e Consistência")
         if st.button("Executar Revisão Linguística"):
-            with st.spinner("Analisando gramática e NBR 10520..."):
+            with st.spinner("Analisando gramática e cruzando citações com referências..."):
+                # Capturamos o meio do texto (citações) e o fim (referências) para o cruzamento
+                corpo_texto = texto_artigo[1000:15000]
+                lista_referencias = texto_artigo[-8000:]
+                
                 prompt = (
-                    "Aja como revisor acadêmico da Encontros Bibli. Analise gramática e NBR 10520:\n"
-                    "1. Citações longas (+3 linhas): Recuo 4cm, Arial 10, sem aspas.\n"
-                    "2. Padrão: 'et al.' em itálico.\n"
-                    f"\nTexto:\n{texto_artigo[1000:12000]}"
+                    "Aja como revisor acadêmico sênior da Encontros Bibli. Sua tarefa é dupla:\n\n"
+                    "1. REVISÃO LINGUÍSTICA E NBR 10520:\n"
+                    "   - Analise gramática, ortografia e estilo científico.\n"
+                    "   - Verifique citações longas (+3 linhas): Devem ter recuo 4cm, Arial 10, sem aspas.\n"
+                    "   - Garante que 'et al.' esteja em itálico.\n\n"
+                    "2. CRUZAMENTO DE CITAÇÕES (CRÍTICO):\n"
+                    "   - Verifique se todos os autores citados no corpo do texto aparecem na lista de referências final.\n"
+                    "   - Identifique autores que estão nas referências mas não foram citados no texto.\n"
+                    "   - Liste explicitamente as ausências (Ex: 'Silva (2022) citado no texto, mas ausente nas referências').\n"
+                    f"\n--- CORPO DO TEXTO ---\n{corpo_texto}\n"
+                    f"\n--- LISTA DE REFERÊNCIAS ---\n{lista_referencias}"
                 )
                 res = realizar_analise(prompt, api_key)
                 st.markdown(res)
-                st.download_button("📥 Baixar Relatório", gerar_docx(res, "Revisao_Gramatical"), "gramatica.docx")
+                st.download_button("📥 Baixar Relatório", gerar_docx(res, "Revisao_Gramatical_Consistencia"), "revisao_linguistica.docx")
 
     with tab3:
         st.subheader("Validação de Referências (NBR 6023)")
@@ -168,6 +185,7 @@ if artigo_file:
                 res = realizar_analise(prompt, api_key)
                 st.markdown(res)
                 st.download_button("📥 Baixar Relatório", gerar_docx(res, "Referencias"), "referencias.docx")
+
 
 
 
