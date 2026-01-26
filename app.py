@@ -117,19 +117,24 @@ if artigo_file:
 
     tab1, tab2, tab3 = st.tabs(["📐 Maquetação & Forma", "✍️ Gramática & Citações", "📚 Referências (ABNT)"])
 
+# --- ABA 1: MAQUETAÇÃO (Atualizada com Tipologia) ---
     with tab1:
         st.subheader("Análise de Maquetação e Identidade Visual")
         if st.button("Executar Análise de Forma"):
-            with st.spinner("Conferindo normas da revista..."):
+            with st.spinner("Conferindo normas e tipologia..."):
                 prompt = (
                     "Aja como Editor de Layout da Revista Encontros Bibli. Analise o artigo conforme o Tutorial de 10/04/2025:\n\n"
-                    "1. Título PT: Arial Black, 16, MAIÚSCULO, Negrito.\n"
-                    "2. Título EN: Arial, 10, minúsculo, Negrito.\n"
-                    "3. Resumo Estruturado: Objetivo, Método, Resultado e Conclusões (Arial 9).\n"
-                    "4. Palavras-chave: 3 a 5 termos separados por PONTO (.).\n"
-                    "5. Limpeza: Deletar frases 'uso exclusivo'.\n"
-                    "6. Editores: Verificar Edgar Bisset, Patrícia Neubert, Genilson Geraldo, Camila Gibbon, Jônatas Silva, Luan Silva, Marcela Reinhardt e Daniela Capri.\n"
-                    f"\nTexto:\n{texto_artigo[:12000]}"
+                    "1. TIPOLOGIA DO DOCUMENTO (Cabeçalho da 1ª página):\n"
+                    "   - Verifique se a tipologia está identificada corretamente.\n"
+                    "   - Tipos aceitos: Artigo original, Artigo de dados, Ensaio ou Estudo de casos.\n"
+                    "   - IMPORTANTE: Se o artigo estiver em Inglês ou Espanhol, a tipologia DEVE ser traduzida adequadamente (ex: 'Original Article', 'Artículo original').\n\n"
+                    "2. TÍTULOS:\n"
+                    "   - Título PT: Arial Black, 16, MAIÚSCULO, Negrito.\n"
+                    "   - Título EN: Arial, 10, minúsculo, Negrito.\n\n"
+                    "3. RESUMO ESTRUTURADO: Deve conter explicitamente Objetivo, Método, Resultado e Conclusões (Arial 9).\n\n"
+                    "4. PALAVRAS-CHAVE: 3 a 5 termos separados obrigatoriamente por PONTO (.).\n\n"
+                    "5. LIMPEZA E EDITORES: Deletar frases 'uso exclusivo' e verificar se constam os nomes oficiais da equipe editorial (Edgar Bisset, Patrícia Neubert, Genilson Geraldo, etc).\n"
+                    f"\nTexto para análise:\n{texto_artigo[:12000]}"
                 )
                 res = realizar_analise(prompt, api_key)
                 st.markdown(res)
@@ -163,6 +168,7 @@ if artigo_file:
                 res = realizar_analise(prompt, api_key)
                 st.markdown(res)
                 st.download_button("📥 Baixar Relatório", gerar_docx(res, "Referencias"), "referencias.docx")
+
 
 
 
